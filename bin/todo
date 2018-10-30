@@ -1,0 +1,118 @@
+#!/usr/bin/env ruby
+require 'thor'
+require 'restclient'
+require 'json'
+require 'debugger'
+
+class Todo < Thor
+  @config = nil
+
+  class_option :configfile, aliases: 'c', banner: 'FNAME', desc: 'config filename', default: 'todo.conf'
+
+  #-----------
+
+  desc 'login USERNAME PASSWORD', 'log in as the current user'
+  def login(uname, pwd, ho="localhost:3000")
+    save_config( username: uname, password: pwd, host: ho )
+    response = get_auth 'users' # just to see if it authenticates
+  end
+
+  desc 'whoami', 'show current user name and id'
+  def whoami
+    puts config[:b]
+    puts "#{userid}: #{username}"
+  end
+
+  desc 'users', 'show users'
+  def users
+    users = get_auth 'users'
+    users['users'].each {|user| puts "#{user['id']}: #{user['username']}" }
+  end
+
+  desc 'create_user NAME PW', 'create new user'
+  def create_user(username, password)
+    user = post_auth 'users', username: username, password: password
+  end
+
+  desc 'lists', 'show lists for current user'
+  def lists
+    lists = get_pw "users/#{userid}/lists"
+    lists['lists'].each {|list| puts list['name'] }
+  end
+
+  desc 'create_list NAME', 'create new (private) list'
+  def create_list(name)
+    list = post_pw "users/#{userid}/lists", name: name
+  end
+end
+
+#-----------
+
+def config
+  @config ||= load_config
+end
+
+def load_config
+  if !File.exists? options[:configfile]
+    puts "#{options[:configfile]} not found."
+    exit 1
+  end
+  YAML::load_file options[:configfile]
+end
+
+def save_config( conf )
+  File.open( options[:configfile], 'w' ) do |h|
+    h.write conf.to_yaml
+  end
+end
+
+def username
+  config[:username]
+end
+
+def password
+  config[:password]
+end
+
+def host
+  config[:host]
+end
+
+def userid
+  @user_id ||= begin
+    # todo: need an api to get single user id
+    users = get_auth('users')
+    user = users['users'].detect {|user| user['username'] == username } if users
+    user['id'] if user
+  end
+end
+
+#-----------
+
+def api_url
+  "http://#{username}:#{password}@#{host}/api"
+end
+
+def get_auth(api_path)
+  response = RestClient.get "#{api_url}/#{api_path}", accept: :json
+  JSON.parse response
+end
+
+def post_auth(api_path, params=[])
+  response = RestClient.post "#{api_url}/#{api_path}", params.to_json, content_type: :json, accept: :json
+  JSON.parse response
+end
+
+def get_pw(api_path)
+  response = RestClient.get "#{api_url}/#{api_path}?password=#{password}", accept: :json
+  JSON.parse response
+end
+
+def post_pw(api_path, params=[])
+  response = RestClient.post "#{api_url}/#{api_path}", params.merge(password: password).to_json, content_type: :json, accept: :json
+  JSON.parse response
+end
+
+#-----------
+
+Todo.start(ARGV)
