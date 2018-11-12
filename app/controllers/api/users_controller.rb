@@ -1,4 +1,11 @@
 class Api::UsersController < ApiController
+ 
+  before_action :authenticated?
+ 
+   def index
+   end
+
+ end
   def destroy
      begin
        user = User.find(params[:id])
@@ -35,5 +42,12 @@ class Api::UsersController < ApiController
   def authenticated?
     authenticate_with_http_basic {|u, p| User.where( username: u, password: p).present? }
   end
-
+def update
+   list = List.find(params[:id])
+   if list.update(list_params)
+     render json: list
+   else
+     render json: { errors: list.errors.full_messages }, status: :unprocessable_entity
+   end
+ end
 end
