@@ -1,4 +1,14 @@
 class Api::UsersController < ApiController
+  def destroy
+     begin
+       user = User.find(params[:id])
+       user.destroy
+# #1
+       render json: {}, status: :no_content
+     rescue ActiveRecord::RecordNotFound
+       render :json => {}, :status => :not_found
+     end
+   end
 
   def index
     return permission_denied_error unless authenticated?
